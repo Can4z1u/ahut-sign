@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
 
+    # 让 p4a 内部调用的 pip 也遵守 constraints.txt（它不带 --platform，装不了 Android 轮子）
+    env:
+      PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
+
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
@@ -50,6 +54,23 @@ jobs:
             /home/runner/.buildozer
           key: sdk-ndk-${{ runner.os }}-v2
 
+      - name: 预检查依赖解析（10 秒，提前发现 Android 轮子问题）
+        run: |
+          pip install --dry-run --only-binary=:all: \
+            --platform android_24_arm64_v8a --python-version 3.14 \
+            --implementation cp --abi cp314 --report /tmp/report.json \
+            requests > /dev/null
+          python - <<'EOF'
+          import json
+          report = json.load(open("/tmp/report.json"))
+          for m in report["install"]:
+              print("解析到:", m["metadata"]["name"], m["metadata"]["version"],
+                    "->", m["download_info"]["url"].split("/")[-1])
+          bad = [m for m in report["install"] if "android" in m["download_info"]["url"]]
+          if bad:
+              raise SystemExit("仍有 Android 轮子被选中，约束没生效")
+          EOF
+
       - name: 打包 APK（首次约 25~35 分钟）
         run: |
           set -o pipefail
@@ -62,15 +83,18 @@ jobs:
           path: bin/*.apk
           if-no-files-found: error
 
-      - name: 失败时导出日志（只打印最后 120 行）
+      - name: 失败时导出日志（只打印关键行）
         if: failure()
         run: |
-          echo "===== buildozer 最后 120 行 ====="
-          tail -n 120 buildozer.log || true
+          echo "===== 关键错误行 ====="
+          grep -n -E "ERROR:|error:|FAILURE|Traceback|Command failed|not a supported wheel" buildozer.log | tail -n 60 || true
           echo
-          echo "===== p4a build.log 最后 80 行 ====="
+          echo "===== buildozer 最后 30 行 ====="
+          tail -n 30 buildozer.log || true
+          echo
+          echo "===== p4a build.log 最后 60 行 ====="
           for f in $(find .buildozer -name build.log 2>/dev/null); do
             echo "--- $f ---"
-            tail -n 80 "$f"
+            tail -n 60 "$f"
           done
           df -h /

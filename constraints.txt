@@ -1,0 +1,6 @@
+# pip 约束文件：p4a 在“安装纯 Python 依赖”这一步调用 pip 时没有传 --platform，
+# 装不上 Android 专用轮子。charset-normalizer 3.5.x 开始发布 android_24_* 轮子，
+# pip 会优先选它，然后报 "not a supported wheel on this platform"。
+# 3.3.2 只有 py3-none-any 通用轮子，锁在这里即可绕过。
+# 通过 workflow 里的 PIP_CONSTRAINT 环境变量生效（p4a 内部调用 pip 也会继承）。
+charset-normalizer==3.3.2
