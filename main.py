@@ -11,11 +11,12 @@ import os
 import threading
 import traceback
 
-# 安卓上没有系统 CA 证书目录，HTTPS 会报证书错误；用 certifi 自带的证书链。
+# 安卓没有系统证书库，HTTPS 会报证书错误；用 certifi 自带的证书链。
+# 注意：必须直接赋值（不能 setdefault，运行时可能已被设成一个目录）。
 try:
     import certifi
-    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
-    os.environ.setdefault("SSL_CERT_DIR", os.path.dirname(certifi.where()))
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+    os.environ["SSL_CERT_DIR"] = os.path.dirname(certifi.where())
 except Exception:
     pass
 

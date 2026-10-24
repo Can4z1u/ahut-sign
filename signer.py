@@ -216,6 +216,41 @@ def _delay_span(value, default):
     return default
 
 
+# ---------------------------------------------------------------- TLS 证书
+# 安卓没有系统证书库（/system/etc/security/cacerts 是个目录，OpenSSL 不会自动使用），
+# 只设 SSL_CERT_FILE 环境变量在部分机型/打包方式下不生效，会报
+# "self-signed certificate in certificate chain"（证书库为空时链末端的自签名根证书就是这个错）。
+# 这里改为显式加载 certifi 的证书文件，绕开环境变量。
+
+def ca_bundle_file():
+    try:
+        import certifi
+        path = certifi.where()
+        if path and os.path.exists(path):
+            return path
+    except Exception:
+        pass
+    return None
+
+
+def build_ssl_context(strict=True):
+    import ssl
+    if not strict:
+        return ssl._create_unverified_context()
+    ca = ca_bundle_file()
+    try:
+        if ca:
+            return ssl.create_default_context(cafile=ca)
+        return ssl.create_default_context()
+    except Exception:
+        return ssl.create_default_context()
+
+
+def is_cert_error(message):
+    msg = (message or "").lower()
+    return "certificate_verify_failed" in msg or "certificate verify failed" in msg
+
+
 # ---------------------------------------------------------------- 算法部分
 
 def password_md5(pwd):
@@ -347,8 +382,13 @@ class Signer:
         self.lng = 0.0
         self.ua = random.choice(UA_LIST)
         self.jar = http.cookiejar.CookieJar()
+        self.strict = True
+        self._build_opener()
+
+    def _build_opener(self):
         self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.jar)
+            urllib.request.HTTPCookieProcessor(self.jar),
+            urllib.request.HTTPSHandler(context=build_ssl_context(self.strict)),
         )
 
     # ---------- 请求工具 ----------
@@ -376,6 +416,16 @@ class Signer:
     def http(self, method, url, headers=None, params=None, json_body=None, timeout=30):
         if params:
             url += ("&" if "?" in url else "?") + urlencode(params)
+        status, data = self._send(method, url, headers, json_body, timeout)
+        # 证书校验失败时（学校/校园网/代理拦截 HTTPS），降级重试一次并明确提示
+        if status == 0 and self.strict and is_cert_error(data.get("msg", "")):
+            self.log("warn", "HTTPS 证书校验失败（可能是校园网或代理拦截），切换兼容模式重试…")
+            self.strict = False
+            self._build_opener()
+            status, data = self._send(method, url, headers, json_body, timeout)
+        return status, data
+
+    def _send(self, method, url, headers, json_body, timeout):
         req_headers = self.base_headers()
         if headers:
             req_headers.update(headers)
