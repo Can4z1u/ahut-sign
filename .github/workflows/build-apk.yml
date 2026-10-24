@@ -1,9 +1,5 @@
 name: Build Android APK
 
-# 不用第三方 Docker Action，直接在 ubuntu-22.04 上装 buildozer 打包，
-# 避免 "Docker build failed with exit code 1"。
-# 上传到 main 分支会自动跑；也可以在 Actions 页面手动 Run workflow。
-
 on:
   push:
     branches: [main, master]
@@ -44,9 +40,20 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer cython
 
-      - name: 打包 APK（首次约 30~40 分钟）
+      - name: 缓存 Android SDK/NDK（省掉每次 5~8 分钟下载）
+        uses: actions/cache@v4
+        with:
+          path: |
+            .buildozer/android/platform/android-sdk
+            .buildozer/android/platform/android-ndk-r25b
+            .buildozer/android/platform/python-for-android
+            /home/runner/.buildozer
+          key: sdk-ndk-${{ runner.os }}-v2
+
+      - name: 打包 APK（首次约 25~35 分钟）
         run: |
-          yes | buildozer -v android debug
+          set -o pipefail
+          yes | buildozer -v android debug 2>&1 | tee buildozer.log
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
@@ -55,11 +62,15 @@ jobs:
           path: bin/*.apk
           if-no-files-found: error
 
-      - name: 失败时导出构建日志
+      - name: 失败时导出日志（只打印最后 120 行）
         if: failure()
         run: |
-          echo "===== buildozer 日志 ====="
-          for f in .buildozer/android/platform/build-*/build.log; do
-            [ -f "$f" ] && { echo "--- $f ---"; tail -n 200 "$f"; }
+          echo "===== buildozer 最后 120 行 ====="
+          tail -n 120 buildozer.log || true
+          echo
+          echo "===== p4a build.log 最后 80 行 ====="
+          for f in $(find .buildozer -name build.log 2>/dev/null); do
+            echo "--- $f ---"
+            tail -n 80 "$f"
           done
           df -h /

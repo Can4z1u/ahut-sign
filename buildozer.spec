@@ -14,7 +14,11 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,otf,txt,json
 version = 1.0
 
 # certifi 负责 HTTPS 证书；openssl 让 Python 的 ssl/urllib 能走 https
-requirements = python3,kivy,certifi,openssl
+# charset-normalizer 必须固定在 3.3.2：
+#   3.5.x 开始发布 android_24_arm64_v8a 专用轮子，而 p4a 最后装包时没带 --platform，
+#   pip 会判定"不支持当前平台"直接失败（日志里的 charset_normalizer-...-android_24...whl）。
+#   3.3.2 还有 py3-none-any 通用轮子，p4a 走纯 Python 路径即可正常安装。
+requirements = python3,kivy,certifi,openssl,charset-normalizer==3.3.2
 
 # 竖屏
 orientation = portrait
@@ -30,6 +34,9 @@ android.allow_backup = True
 android.minapi = 24
 android.api = 34
 android.ndk = 25b
+
+# 只打 arm64（近几年的手机都是 arm64），构建时间和 APK 体积都能少一半
+android.archs = arm64-v8a
 
 # 自动接受 Android SDK 许可（云构建需要）
 android.accept_sdk_license = True
