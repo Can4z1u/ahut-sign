@@ -73,15 +73,19 @@ jobs:
 
       - name: 打包 APK（首次约 25~35 分钟）
         run: |
-          set -o pipefail
-          yes | buildozer -v android debug 2>&1 | tee buildozer.log
+          # 不用 pipefail：`yes` 在 buildozer 结束时会因 SIGPIPE 退出(141)，
+          # 会把"构建成功"误判成失败。这里改用 PIPESTATUS 取 buildozer 自己的退出码。
+          set +o pipefail
+          yes 2>/dev/null | buildozer -v android debug 2>&1 | tee buildozer.log
+          exit ${PIPESTATUS[1]}
 
       - name: 上传 APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ahut-sign-apk
           path: bin/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: 失败时导出日志（只打印关键行）
         if: failure()
