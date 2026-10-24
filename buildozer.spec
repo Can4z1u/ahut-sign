@@ -27,7 +27,9 @@ android.permissions = INTERNET
 android.allow_backup = True
 
 # 兼容老机型
-android.minapi = 21
+android.minapi = 24
+android.api = 34
+android.ndk = 25b
 
 # 自动接受 Android SDK 许可（云构建需要）
 android.accept_sdk_license = True

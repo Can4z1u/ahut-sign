@@ -1,7 +1,8 @@
 name: Build Android APK
 
-# 上传到 GitHub 后：Actions 页面点 "Run workflow"，等 15~25 分钟，
-# 在本次运行的 Artifacts 里下载 ahut-sign-apk，解压就是 APK。
+# 不用第三方 Docker Action，直接在 ubuntu-22.04 上装 buildozer 打包，
+# 避免 "Docker build failed with exit code 1"。
+# 上传到 main 分支会自动跑；也可以在 Actions 页面手动 Run workflow。
 
 on:
   push:
@@ -10,20 +11,55 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
 
-      - name: 用 buildozer 打包 APK
-        id: buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
+      - name: 清理磁盘（runner 自带的 SDK/.NET 很占地方）
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          df -h /
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
         with:
-          command: buildozer android debug
-          buildozer_version: stable
+          python-version: "3.11"
+
+      - name: 准备 Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 安装打包依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git zip unzip autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
+            cmake libffi-dev libssl-dev libltdl-dev ccache
+          python -m pip install --upgrade pip setuptools wheel
+          pip install buildozer cython
+
+      - name: 打包 APK（首次约 30~40 分钟）
+        run: |
+          yes | buildozer -v android debug
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: ahut-sign-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
+          if-no-files-found: error
+
+      - name: 失败时导出构建日志
+        if: failure()
+        run: |
+          echo "===== buildozer 日志 ====="
+          for f in .buildozer/android/platform/build-*/build.log; do
+            [ -f "$f" ] && { echo "--- $f ---"; tail -n 200 "$f"; }
+          done
+          df -h /
