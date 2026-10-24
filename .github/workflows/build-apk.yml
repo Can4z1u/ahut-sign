@@ -1,0 +1,29 @@
+name: Build Android APK
+
+# 上传到 GitHub 后：Actions 页面点 "Run workflow"，等 15~25 分钟，
+# 在本次运行的 Artifacts 里下载 ahut-sign-apk，解压就是 APK。
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 用 buildozer 打包 APK
+        id: buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        with:
+          command: buildozer android debug
+          buildozer_version: stable
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahut-sign-apk
+          path: ${{ steps.buildozer.outputs.filename }}
