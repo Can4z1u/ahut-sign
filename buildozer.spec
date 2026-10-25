@@ -11,7 +11,7 @@ package.domain = org.ahut
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,otf,txt,json
 
-version = 1.2
+version = 1.3
 
 # certifi 负责 HTTPS 证书；openssl 让 Python 的 ssl/urllib 能走 https
 # charset-normalizer 必须固定在 3.3.2：

@@ -10,6 +10,7 @@ AHUT 晚寝签到 · 安卓 App（Kivy 版）
 """
 
 import os
+import random
 import threading
 import traceback
 from datetime import datetime, timedelta
@@ -95,6 +96,32 @@ def next_run_time(hour=21, minute=20):
     if when <= now:
         when += timedelta(days=1)
     return when
+
+
+def parse_window(text, default=((21, 21), (21, 25))):
+    """解析 "21:21-21:25" → ((21, 21), (21, 25))；解析失败就用默认值。"""
+    try:
+        left, right = str(text).split("-")
+        h1, m1 = (int(x) for x in left.strip().split(":"))
+        h2, m2 = (int(x) for x in right.strip().split(":"))
+        if (0 <= h1 < 24 and 0 <= m1 < 60 and 0 <= h2 < 24 and 0 <= m2 < 60
+                and (h2, m2) >= (h1, m1)):
+            return (h1, m1), (h2, m2)
+    except Exception:
+        pass
+    return default
+
+
+def next_random_time(start, end):
+    """在 [start, end] 时间窗里随机取一个时刻（精确到秒）；窗口已过就取明天。"""
+    now = datetime.now()
+    lo = now.replace(hour=start[0], minute=start[1], second=0, microsecond=0)
+    hi = now.replace(hour=end[0], minute=end[1], second=0, microsecond=0)
+    if now >= hi:
+        lo += timedelta(days=1)
+        hi += timedelta(days=1)
+    span = max(0, int((hi - lo).total_seconds()))
+    return lo + timedelta(seconds=random.randint(0, span))
 
 
 def set_alarm(when):
@@ -193,7 +220,7 @@ class SignApp(App):
                                  size_hint_x=None, width=dp(44))
         self.chk_auto.bind(active=self.on_auto_toggle)
         auto_row.add_widget(self.chk_auto)
-        auto_row.add_widget(Label(text="每天 21:20 自动签到（到点自动打开并签到）",
+        auto_row.add_widget(Label(text="每天 21:21~21:25 之间随机自动签到",
                                   font_size=sp(14), halign="left", valign="middle"))
         root.add_widget(auto_row)
 
@@ -267,9 +294,9 @@ class SignApp(App):
         if self.cfg.get("auto_sign") and self.auto_triggered:
             self.auto_triggered = False
             if success:
-                when = set_alarm(next_run_time(*self.auto_at()))
+                when = set_alarm(next_random_time(*self.auto_window()))
                 if when:
-                    self.auto_status.text = f"下次自动签到：{when:%m-%d %H:%M}"
+                    self.auto_status.text = f"下次自动签到：{when:%m-%d %H:%M:%S}"
             else:
                 # 失败（断网/未到时间等）：10 分钟后再试一次，最多试到 22:50
                 retry_at = datetime.now() + timedelta(minutes=10)
@@ -279,17 +306,18 @@ class SignApp(App):
 
     # ---------- 自动签到 ----------
 
-    def auto_at(self):
-        return parse_hhmm(self.cfg.get("auto_time") or "21:20")
+    def auto_window(self):
+        """每天随机签到的时间窗，默认 21:21~21:25，可在 签到配置.json 里改 auto_window。"""
+        return parse_window(self.cfg.get("auto_window") or "21:21-21:25")
 
     def refresh_auto_status(self):
         if not self.cfg.get("auto_sign"):
             cancel_alarm()
             self.auto_status.text = "自动签到已关闭"
             return
-        when = set_alarm(next_run_time(*self.auto_at()))
+        when = set_alarm(next_random_time(*self.auto_window()))
         if when:
-            self.auto_status.text = f"下次自动签到：{when:%m-%d %H:%M}"
+            self.auto_status.text = f"下次自动签到：{when:%m-%d %H:%M:%S}"
         else:
             self.auto_status.text = "自动签到已开启，但系统闹钟设置失败（检查权限）"
 
@@ -300,8 +328,8 @@ class SignApp(App):
         self.cfg["auto_sign"] = bool(active)
         signer.save_config(self.cfg)
         if active:
-            when = set_alarm(next_run_time(*self.auto_at()))
-            self.auto_status.text = (f"下次自动签到：{when:%m-%d %H:%M}" if when
+            when = set_alarm(next_random_time(*self.auto_window()))
+            self.auto_status.text = (f"下次自动签到：{when:%m-%d %H:%M:%S}" if when
                                      else "已开启，但系统闹钟设置失败（检查权限）")
             if when:
                 self.append(f"· 已开启自动签到，下次 {when:%m-%d %H:%M}")
