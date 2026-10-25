@@ -11,7 +11,7 @@ package.domain = org.ahut
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,otf,txt,json
 
-version = 1.1
+version = 1.2
 
 # certifi 负责 HTTPS 证书；openssl 让 Python 的 ssl/urllib 能走 https
 # charset-normalizer 必须固定在 3.3.2：
@@ -24,8 +24,9 @@ requirements = python3,kivy,certifi,openssl,charset-normalizer==3.3.2
 orientation = portrait
 fullscreen = 0
 
-# 需要联网
-android.permissions = INTERNET
+# 需要联网 + 定时闹钟权限（Android 12+ 精确闹钟需要 SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM，
+# 没有权限时代码会自动退回"允许延迟十几分钟"的 setAndAllowWhileIdle）
+android.permissions = INTERNET, SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM
 
 # 保留返回键/后台行为由 Kivy 处理
 android.allow_backup = True
