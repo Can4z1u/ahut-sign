@@ -98,8 +98,8 @@ def next_run_time(hour=21, minute=20):
     return when
 
 
-def parse_window(text, default=((21, 21), (21, 25))):
-    """解析 "21:21-21:25" → ((21, 21), (21, 25))；解析失败就用默认值。"""
+def parse_window(text, default=((21, 41), (21, 43))):
+    """解析 "21:41-21:43" → ((21, 41), (21, 43))；解析失败就用默认值。"""
     try:
         left, right = str(text).split("-")
         h1, m1 = (int(x) for x in left.strip().split(":"))
@@ -220,7 +220,7 @@ class SignApp(App):
                                  size_hint_x=None, width=dp(44))
         self.chk_auto.bind(active=self.on_auto_toggle)
         auto_row.add_widget(self.chk_auto)
-        auto_row.add_widget(Label(text="每天 21:21~21:25 之间随机自动签到",
+        auto_row.add_widget(Label(text="每天 21:41~21:43 之间随机自动签到",
                                   font_size=sp(14), halign="left", valign="middle"))
         root.add_widget(auto_row)
 
@@ -307,8 +307,8 @@ class SignApp(App):
     # ---------- 自动签到 ----------
 
     def auto_window(self):
-        """每天随机签到的时间窗，默认 21:21~21:25，可在 签到配置.json 里改 auto_window。"""
-        return parse_window(self.cfg.get("auto_window") or "21:21-21:25")
+        """每天随机签到的时间窗，默认 21:41~21:43，可在 签到配置.json 里改 auto_window。"""
+        return parse_window(self.cfg.get("auto_window") or "21:41-21:43")
 
     def refresh_auto_status(self):
         if not self.cfg.get("auto_sign"):
